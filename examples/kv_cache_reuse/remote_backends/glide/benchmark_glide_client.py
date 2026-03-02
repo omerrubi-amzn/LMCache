@@ -240,6 +240,7 @@ async def run_benchmark(host, port, chunk_mb, num_workers, num_keys, username, p
         )
 
     # ── Test 1: Async individual (current connector behavior)
+    await client.custom_command(["FLUSHALL"])
     print("\n[1] Async Glide - individual set/get per key:")
     read_bufs = [bytearray(chunk_bytes) for _ in range(num_keys)]
     es, eg = await bench_async_individual(client, keys, buffers, read_bufs)
@@ -251,6 +252,7 @@ async def run_benchmark(host, port, chunk_mb, num_workers, num_keys, username, p
     report(es, eg)
 
     # ── Test 2: Async pipeline batch
+    await client.custom_command(["FLUSHALL"])
     print("\n[2] Async Glide - pipeline batch (Batch + mget):")
     read_bufs = [bytearray(chunk_bytes) for _ in range(num_keys)]
     es, eg = await bench_async_pipeline(client, keys, buffers, read_bufs)
@@ -262,6 +264,7 @@ async def run_benchmark(host, port, chunk_mb, num_workers, num_keys, username, p
     report(es, eg)
 
     # ── Test 3: Sync + threads
+    await client.custom_command(["FLUSHALL"])
     print(f"\n[3] Sync Glide - ThreadPool ({num_workers} workers):")
     read_bufs = [bytearray(chunk_bytes) for _ in range(num_keys)]
     try:
@@ -278,6 +281,7 @@ async def run_benchmark(host, port, chunk_mb, num_workers, num_keys, username, p
         print("  SKIPPED - glide_sync not available (requires valkey-glide >= 2.1)")
 
     # ── Test 4: Sync + threads + batched per thread
+    await client.custom_command(["FLUSHALL"])
     print(f"\n[4] Sync Glide - ThreadPool ({num_workers} workers) + pipeline/mget per thread:")
     read_bufs = [bytearray(chunk_bytes) for _ in range(num_keys)]
     try:

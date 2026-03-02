@@ -8,17 +8,18 @@ We benchmarked the throughput of different client configurations for LMCache's r
 
 - Redis 7.0.7 with 4 IO threads, localhost, no persistence (`--save '' --appendonly no`)
 - Python 3.11, `valkey-glide` 2.2.7, `valkey-glide-sync` 2.2.7
-- Workload: 50 keys × 4MB values (200MB total), matching LMCache's recommended chunk size for high-throughput KV cache transfers
+- Workload: 500 keys × 4MB values (2GB total), matching LMCache's recommended chunk size for high-throughput KV cache transfers
 - Each test performs a full SET of all keys followed by a full GET, with data integrity verification
+- FLUSHALL (blocking) issued between each test to ensure clean state
 
 ## Results
 
 | Client Configuration | SET (GB/s) | GET (GB/s) |
 |---------------------|------------|------------|
-| RESP (C++) | 3.24 | 0.49 |
-| GLIDE sync + ThreadPool | 1.91 | 0.58 |
-| GLIDE async pipeline | 0.38 | 0.41 |
-| GLIDE async individual | 0.31 | 0.55 |
+| RESP (C++) | 1.63 | 0.81 |
+| GLIDE sync + ThreadPool | 1.48 | 0.87 |
+| GLIDE async pipeline | 0.33 | 0.41 |
+| GLIDE async individual | 0.29 | 0.58 |
 
 ## Client Configurations
 
@@ -40,8 +41,8 @@ Uses the `glide_sync` module with a `ThreadPoolExecutor` (8 workers). Each threa
 
 ## Analysis
 
-- **SET throughput** is where configurations diverge most. The sync threaded approach achieves 6x the throughput of the current async implementation, getting within ~2x of the C++ baseline.
-- **GET throughput** is ~0.5 GB/s across all configurations, indicating the bottleneck is server-side serialization of large values rather than client-side concurrency.
+- **SET throughput** is where configurations diverge most. The sync threaded approach achieves 5x the throughput of the current async implementation, getting within ~10% of the C++ baseline.
+- **GET throughput** is ~0.8 GB/s for the best configurations. The sync threaded GLIDE client slightly outperforms the C++ RESP client (0.87 vs 0.81 GB/s).
 - **Pipelining/mget did not help** at this value size. With 4MB values, individual operations across threads allow Redis to interleave responses across its IO threads more effectively than a single large batched response.
 - The C++ RESP client's SET advantage comes from bypassing the Python GIL entirely — each C++ worker thread does raw socket I/O independently.
 
