@@ -184,7 +184,11 @@ class ValkeyConnector(RemoteConnector):
 
     async def _put(self, key: CacheEngineKey, memory_obj: MemoryObj):
         try:
-            kv_bytes = bytes(memory_obj.byte_array)
+            kv_bytes = memory_obj.byte_array
+            if not isinstance(kv_bytes, memoryview):
+                kv_bytes = memoryview(kv_bytes)
+            elif kv_bytes.format != "B":
+                kv_bytes = kv_bytes.cast("B")
             kv_shapes = memory_obj.get_shapes()
             kv_dtypes = memory_obj.get_dtypes()
             memory_format = memory_obj.get_memory_format()
@@ -359,7 +363,11 @@ class ValkeyClusterConnector(RemoteConnector):
 
     async def _put(self, key: CacheEngineKey, memory_obj: MemoryObj):
         try:
-            kv_bytes = bytes(memory_obj.byte_array)
+            kv_bytes = memory_obj.byte_array
+            if not isinstance(kv_bytes, memoryview):
+                kv_bytes = memoryview(kv_bytes)
+            elif kv_bytes.format != "B":
+                kv_bytes = kv_bytes.cast("B")
             kv_shapes = memory_obj.get_shapes()
             kv_dtypes = memory_obj.get_dtypes()
             memory_format = memory_obj.get_memory_format()

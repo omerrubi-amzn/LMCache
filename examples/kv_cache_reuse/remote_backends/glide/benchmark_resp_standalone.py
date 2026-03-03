@@ -97,6 +97,41 @@ async def run_benchmark(host, port, chunk_mb, num_workers, num_keys, username, p
     print("Done.")
 
 
+# ── Model presets ────────────────────────────────────────────────────────────
+
+MODEL_PRESETS = {
+    "llama8b":  (32 * 2 * 256 * 8 * 128 * 2 / (1024**2),  "Llama-3.1-8B"),
+    "llama70b": (80 * 2 * 256 * 8 * 128 * 2 / (1024**2),  "Llama-3.1-70B"),
+}
+
+CONTEXT_PRESETS = {"8k": 32, "64k": 256}
+
+
+def apply_preset(args):
+    if not args.preset:
+        return
+    parts = args.preset.split("-", 1)
+    model_key = parts[0]
+    ctx_key = parts[1] if len(parts) > 1 else None
+    if model_key not in MODEL_PRESETS:
+        raise SystemExit(
+            f"Unknown model preset '{model_key}'. "
+            f"Available: {', '.join(MODEL_PRESETS)}"
+        )
+    chunk_mb, desc = MODEL_PRESETS[model_key]
+    if args.chunk_mb == 4.0:
+        args.chunk_mb = chunk_mb
+    if ctx_key:
+        if ctx_key not in CONTEXT_PRESETS:
+            raise SystemExit(
+                f"Unknown context preset '{ctx_key}'. "
+                f"Available: {', '.join(CONTEXT_PRESETS)}"
+            )
+        if args.num_keys == 500:
+            args.num_keys = CONTEXT_PRESETS[ctx_key]
+    print(f"Preset: {desc}, chunk={args.chunk_mb:.1f}MB, keys={args.num_keys}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Benchmark RESP C++ client")
     parser.add_argument("--host", default="127.0.0.1")
@@ -106,5 +141,14 @@ if __name__ == "__main__":
     parser.add_argument("--num-keys", type=int, default=500)
     parser.add_argument("--username", default="")
     parser.add_argument("--password", default="")
+    parser.add_argument(
+        "--preset",
+        type=str,
+        default=None,
+        help="Model-context preset, e.g. llama8b-8k, llama70b-64k.",
+    )
     args = parser.parse_args()
-    asyncio.run(run_benchmark(**vars(args)))
+    apply_preset(args)
+    kwargs = vars(args)
+    kwargs.pop("preset")
+    asyncio.run(run_benchmark(**kwargs))
