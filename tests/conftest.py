@@ -271,7 +271,7 @@ class MockRESPClient:
         except (NotImplementedError, TypeError, ValueError):
             # Multi-dimensional or non-contiguous:
             # write via flat numpy view (same memory)
-            arr = np.asarray(view, dtype=np.uint8, copy=False)
+            arr = np.frombuffer(view, dtype=np.uint8)
             arr.flat[:n] = np.frombuffer(data, dtype=np.uint8, count=n)
 
     async def get(self, key: str, buf: memoryview) -> None:
@@ -310,6 +310,53 @@ class MockRESPClient:
     def close(self) -> None:
         self._closed = True
         self._store.clear()
+
+
+class MockSyncGlideClient:
+    """In-memory mock of glide_sync.GlideClient for SyncValkeyConnector tests.
+
+    Simulates the GLIDE sync client interface without requiring a real
+    Valkey server or the glide_sync package.
+    """
+
+    _shared_store: dict[str, bytes] = {}
+
+    @classmethod
+    def create(cls, config):
+        return cls()
+
+    def set(self, key: bytes, value) -> None:
+        if isinstance(value, memoryview):
+            value = bytes(value.cast("B"))
+        elif not isinstance(value, bytes):
+            value = bytes(value)
+        self._shared_store[key.decode() if isinstance(key, bytes) else key] = value
+
+    def get(self, key: bytes, buffer=None):
+        k = key.decode() if isinstance(key, bytes) else key
+        data = self._shared_store.get(k)
+        if data is None:
+            return None
+        if buffer is not None:
+            buf = buffer.cast("B") if buffer.format != "B" else buffer
+            buf[: len(data)] = data
+            return len(data)
+        return data
+
+    def exists(self, keys: list) -> int:
+        count = 0
+        for k in keys:
+            k_str = k.decode() if isinstance(k, bytes) else k
+            if k_str in self._shared_store:
+                count += 1
+        return count
+
+    def close(self) -> None:
+        pass
+
+    @classmethod
+    def reset_store(cls) -> None:
+        cls._shared_store.clear()
 
 
 class MockRedisCluster:
