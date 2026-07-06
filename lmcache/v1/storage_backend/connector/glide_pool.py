@@ -260,6 +260,14 @@ class _ThreadWorkerPool:
         mid-write.  We stage into a thread-private scratch buffer and copy
         into ``buf`` under the GIL.
         """
+        # Normalize to an unsigned-byte view. In MP mode the destination comes
+        # straight from ``MemoryObj.byte_array`` (format "<B"); slice assignment
+        # below requires a plain "B" view or it raises a structure mismatch.
+        # The non-MP connector casts before calling; do it here so both callers
+        # are safe.
+        if buf.format != "B":
+            buf = buf.cast("B")
+
         client = self._get_client()
         if self._has_buffer_get:
             size = buf.nbytes
