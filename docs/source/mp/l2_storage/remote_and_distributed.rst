@@ -11,4 +11,5 @@ sharing cache across nodes.
    hfbucket
    mooncake_store
    resp
+   valkey_glide
    aerospike

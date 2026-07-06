@@ -549,6 +549,16 @@ pybind-wrapped `IStorageConnector` to the `L2AdapterInterface`:
 `csrc/storage_backends/redis/` demonstrates all 5 steps of the integration
 guide.
 
+**Pure-Python backing client:** The bridge works with *any* object exposing the
+duck-typed interface (`event_fd` / `submit_batch_{get,set,exists,delete}` /
+`drain_completions` / `close`) — it need not be a C++ connector. The
+`valkey_glide` adapter (`valkey_glide_l2_adapter.py`) wraps the pure-Python
+`GlideBatchClient` (`glide_batch_client.py`), which adapts the GLIDE
+`_ThreadWorkerPool` (`concurrent.futures`) to that same interface. This mirrors
+the RESP adapter's config+factory shape while keeping the GLIDE client in
+Python — the mirror image of `ConnectorClientBase`, which adapts a native batch
+client down to asyncio for the non-MP connector.
+
 ## Implementing a New Store or Prefetch Policy
 
 Both store and prefetch policies use a name-based registry with automatic
