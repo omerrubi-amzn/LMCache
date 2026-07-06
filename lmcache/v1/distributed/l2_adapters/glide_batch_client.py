@@ -199,9 +199,44 @@ class GlideBatchClient:
             self._efd.notify()
             return future_id
 
-        for i in range(n):
-            fut = launch(i)
-            fut.add_done_callback(self._make_callback(future_id, i))
+        # Launch per-key futures outside the lock. If a submit raises partway
+        # through (e.g. the pool is shutting down), the keys that never got a
+        # future would otherwise leave ``remaining`` above zero and the batch
+        # would never complete — hanging the L2 task. Account for the
+        # unlaunched keys so the batch finalizes as a failure (ok=False),
+        # matching the native path's atomic per-batch failure.
+        launched = 0
+        try:
+            for i in range(n):
+                fut = launch(i)
+                fut.add_done_callback(self._make_callback(future_id, i))
+                launched += 1
+        except Exception as exc:  # noqa: BLE001 - surface at task level
+            logger.warning(
+                "GlideBatchClient %s failed to launch key %d/%d (fid=%d): %s",
+                op_type,
+                launched,
+                n,
+                future_id,
+                exc,
+            )
+            notify = False
+            with self._lock:
+                pb = self._pending.get(future_id)
+                if pb is not None:
+                    pb.ok = False
+                    if not pb.err:
+                        pb.err = str(exc)
+                    # Decrement for the keys that never got a future.
+                    pb.remaining -= n - launched
+                    if pb.remaining <= 0:
+                        del self._pending[future_id]
+                        self._completions.append(
+                            (future_id, pb.ok, pb.err, pb.results)
+                        )
+                        notify = True
+            if notify:
+                self._efd.notify()
         return future_id
 
     def _make_callback(self, future_id: int, index: int):

@@ -178,6 +178,32 @@ def test_empty_batch_completes_immediately(client):
     assert comps == [(fid, True, "", [])]
 
 
+def test_launch_failure_finalizes_batch_without_hanging():
+    """If the pool raises mid fan-out, the batch must still complete (ok=False)."""
+
+    class FlakyPool(FakePool):
+        def __init__(self):
+            super().__init__()
+            self._n = 0
+
+        def submit_set(self, key, data):
+            self._n += 1
+            if self._n == 2:
+                raise RuntimeError("cannot schedule new futures after shutdown")
+            return super().submit_set(key, data)
+
+    c = GlideBatchClient(FlakyPool())
+    try:
+        c.submit_batch_set(["a", "b", "c"], [memoryview(b"x")] * 3)
+        comps = _wait_drain(c)
+        assert len(comps) == 1
+        _, ok, err, _ = comps[0]
+        assert ok is False
+        assert "cannot schedule" in err
+    finally:
+        c.close()
+
+
 def test_drain_consumes_eventfd(client):
     client.submit_batch_exists(["x"])
     comps = _wait_drain(client)
